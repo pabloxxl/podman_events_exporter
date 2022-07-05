@@ -5,6 +5,7 @@ go 1.17
 require (
 	github.com/containers/podman/v4 v4.1.1
 	github.com/prometheus/client_golang v1.11.1
+	github.com/sirupsen/logrus v1.8.1
 	k8s.io/klog/v2 v2.70.0
 
 )
@@ -80,7 +81,6 @@ require (
 	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rogpeppe/go-internal v1.8.1 // indirect
-	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stefanberger/go-pkcs11uri v0.0.0-20201008174630-78d3cae3a980 // indirect
 	github.com/sylabs/sif/v2 v2.7.0 // indirect

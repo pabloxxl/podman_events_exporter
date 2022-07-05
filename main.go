@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,6 +12,7 @@ import (
 	"github.com/containers/podman/v4/pkg/bindings"
 	"github.com/containers/podman/v4/pkg/bindings/system"
 	"github.com/containers/podman/v4/pkg/domain/entities"
+	"github.com/sirupsen/logrus"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -22,12 +23,15 @@ const (
 	SOCK_DIR = "/var/run"
 )
 
+var (
+	argSocket = flag.String("socket", "", "Podman socket path")
+)
+
 func createListener(ctx context.Context, eventChan *chan entities.Event, exitChan *chan bool) error {
 	klog.Info("Creating events listener")
 	err := system.Events(ctx, *eventChan, *exitChan, &system.EventsOptions{})
 	if err != nil {
-		fmt.Println(err)
-		return err
+		klog.V(2).ErrorS(err, "Event is missing action type")
 	}
 	klog.Info("Events listener is finished")
 	return nil
@@ -37,6 +41,11 @@ func convertEventToCounter(event *entities.Event, counters map[string]*prometheu
 	val, ok := event.Actor.Attributes["name"]
 	name := "unkown"
 	action := event.Action
+
+	if action == "" {
+		klog.V(2).Info("Event is missing action type")
+		return
+	}
 
 	if ok && val != "" {
 		name = val
@@ -71,15 +80,23 @@ func connectToPodmanSocket(path string) (context.Context, error) {
 }
 
 func main() {
+	// Disable ugly logs from podman library
+	logrus.SetOutput(ioutil.Discard)
 
-	flag.Set("alsologtostderr", "true")
 	flag.Parse()
-	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
-	klog.InitFlags(klogFlags)
+	klog.InitFlags(nil)
+	defer klog.Flush()
+
 	run := true
 	counters := make(map[string]*prometheus.CounterVec)
 
-	ctx, err := connectToPodmanSocket(SOCK_DIR)
+	sock_dir := SOCK_DIR
+	klog.Error(argSocket)
+	if *argSocket != "" {
+		sock_dir = *argSocket
+	}
+
+	ctx, err := connectToPodmanSocket(sock_dir)
 	if err != nil {
 		os.Exit(1)
 	}
@@ -96,6 +113,7 @@ func main() {
 	}()
 	go createListener(ctx, &eventChan, &exitChan)
 
+	klog.Info("Listening on /metrics")
 	http.Handle("/metrics", promhttp.Handler())
 	go http.ListenAndServe(":2112", nil)
 
