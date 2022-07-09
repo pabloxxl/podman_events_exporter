@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/containers/podman/v4/pkg/bindings"
@@ -24,8 +26,46 @@ const (
 )
 
 var (
-	argSocket = flag.String("socket", "", "Podman socket path")
+	argSocket          = flag.String("socket", "", "Podman socket path")
+	Version     string = "n/a"
+	BuildCommit string = "n/a"
+	BuildBranch string = "n/a"
+	BuildHost   string = "n/a"
+	BuildTime   string = "n/a"
 )
+
+func printBuildData() {
+	fmt.Printf("Build variables of podman_events_exporter_%s:\n", Version)
+	fmt.Printf("  commit:     %s\n", BuildCommit)
+	fmt.Printf("  branch:     %s\n", BuildBranch)
+	fmt.Printf("  build host: %s\n", BuildHost)
+	fmt.Printf("  build time: %s\n", BuildTime)
+}
+
+func parseArguments() (*bool, *bool, map[string]bool, map[string]bool) {
+	include := make(map[string]bool)
+	exclude := make(map[string]bool)
+
+	argVersion := flag.Bool("version", false, "Print version and exit")
+	arghelp := flag.Bool("help", false, "Print help and exit")
+	argInclude := flag.String("include", "", "Include certain events, comma separated")
+	argExclude := flag.String("exclude", "", "Exclude certain events, comma separated")
+
+	flag.Parse()
+	for _, elem := range strings.Split(*argInclude, ",") {
+		if len(elem) > 2 {
+			include[elem] = true
+		}
+	}
+
+	for _, elem := range strings.Split(*argExclude, ",") {
+		if len(elem) > 2 {
+			exclude[elem] = true
+		}
+	}
+
+	return argVersion, arghelp, include, exclude
+}
 
 func createListener(ctx context.Context, eventChan *chan entities.Event, exitChan *chan bool) error {
 	klog.Info("Creating events listener")
@@ -37,10 +77,22 @@ func createListener(ctx context.Context, eventChan *chan entities.Event, exitCha
 	return nil
 }
 
-func convertEventToCounter(event *entities.Event, counters map[string]*prometheus.CounterVec) {
+func convertEventToCounter(event *entities.Event, counters map[string]*prometheus.CounterVec, include map[string]bool, exclude map[string]bool) {
 	val, ok := event.Actor.Attributes["name"]
 	name := "unkown"
 	action := event.Action
+	var labelNames []string
+	labels := make(map[string]string)
+
+	if len(include) > 0 && !include[action] {
+		klog.V(2).Infof("%s is not included. Included labels: %s", action, include)
+		return
+	}
+
+	if len(exclude) > 0 && include[action] {
+		klog.V(2).Infof("%s is excluded", action)
+		return
+	}
 
 	if action == "" {
 		klog.V(2).Info("Event is missing action type")
@@ -49,23 +101,25 @@ func convertEventToCounter(event *entities.Event, counters map[string]*prometheu
 
 	if ok && val != "" {
 		name = val
+		labels["name"] = name
+		labelNames = append(labelNames, "name")
 	}
 
 	valC, okC := counters[action]
 	if !okC {
-		klog.Infof("Creating new counter: podman_events_%s", event.Action)
+		klog.V(2).Infof("Creating new counter: podman_events_%s with %d labels", event.Action, len(labelNames))
 		counters[event.Action] = prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "podman_events_" + action,
 				Help: "Podman event " + action,
 			},
-			[]string{"name"})
+			labelNames)
 		valC = counters[action]
 		prometheus.MustRegister(valC)
 	}
 
-	klog.Infof("Incrementing counter: podman_events_%s for %s", action, name)
-	valC.With(prometheus.Labels{"name": name}).Inc()
+	klog.V(2).Infof("Incrementing counter: podman_events_%s for %s with labels %s", action, name, labels)
+	valC.With(labels).Inc()
 }
 
 func connectToPodmanSocket(path string) (context.Context, error) {
@@ -80,18 +134,33 @@ func connectToPodmanSocket(path string) (context.Context, error) {
 }
 
 func main() {
+	klog.InitFlags(nil)
+	defer klog.Flush()
+
+	version, help, include, exclude := parseArguments()
+	if *help {
+		flag.Usage()
+		os.Exit(0)
+	} else if *version {
+		printBuildData()
+		os.Exit(0)
+	}
 	// Disable ugly logs from podman library
 	logrus.SetOutput(ioutil.Discard)
 
-	flag.Parse()
-	klog.InitFlags(nil)
-	defer klog.Flush()
+	klog.Infof("Running podman_events_exporter version %s", Version)
+	for k, _ := range include {
+		klog.Infof("Including event %s", k)
+	}
+
+	for k, _ := range exclude {
+		klog.Infof("Excluding event %s", k)
+	}
 
 	run := true
 	counters := make(map[string]*prometheus.CounterVec)
 
 	sock_dir := SOCK_DIR
-	klog.Error(argSocket)
 	if *argSocket != "" {
 		sock_dir = *argSocket
 	}
@@ -119,10 +188,9 @@ func main() {
 
 	for run {
 		msg := <-eventChan
-		convertEventToCounter(&msg, counters)
+		convertEventToCounter(&msg, counters, include, exclude)
 	}
 
 	klog.Info("Program finished")
-	return
 
 }

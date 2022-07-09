@@ -15,5 +15,5 @@
  vendor/
 
 # Binary file
-podman_events_exporter
+bin/podman_events_exporter*
 

@@ -1,6 +1,6 @@
 module github.com/pabloxxl/podman_events_exporter
 
-go 1.17
+go 1.18
 
 require (
 	github.com/containers/podman/v4 v4.1.1
