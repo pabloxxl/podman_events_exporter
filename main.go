@@ -50,6 +50,7 @@ func parseArguments() (*bool, *bool, map[string]bool, map[string]bool) {
 	arghelp := flag.Bool("help", false, "Print help and exit")
 	argInclude := flag.String("include", "", "Include certain events, comma separated")
 	argExclude := flag.String("exclude", "", "Exclude certain events, comma separated")
+	argDebug := flag.Bool("debug", false, "Run program in debug mode")
 
 	flag.Parse()
 	for _, elem := range strings.Split(*argInclude, ",") {
@@ -64,6 +65,9 @@ func parseArguments() (*bool, *bool, map[string]bool, map[string]bool) {
 		}
 	}
 
+	if *argDebug {
+		flag.Set("v", "2")
+	}
 	return argVersion, arghelp, include, exclude
 }
 
@@ -149,11 +153,11 @@ func main() {
 	logrus.SetOutput(ioutil.Discard)
 
 	klog.Infof("Running podman_events_exporter version %s", Version)
-	for k, _ := range include {
+	for k := range include {
 		klog.Infof("Including event %s", k)
 	}
 
-	for k, _ := range exclude {
+	for k := range exclude {
 		klog.Infof("Excluding event %s", k)
 	}
 

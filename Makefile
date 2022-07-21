@@ -13,7 +13,7 @@ run: build execute
  
 build:
 	mkdir -p bin
-	go build -o bin/${BINARY_NAME} -ldflags="-X 'main.Version=${VERSION}' -X 'main.BuildCommit=${COMMIT}' \
+	CGO_ENABLED=0 go build -tags containers_image_openpgp -o bin/${BINARY_NAME} -ldflags="-X 'main.Version=${VERSION}' -X 'main.BuildCommit=${COMMIT}' \
 	 -X 'main.BuildBranch=${BRANCH}' -X 'main.BuildHost=${HOST}' -X 'main.BuildTime=${TIMESTAMP}'" main.go
  
 execute:
