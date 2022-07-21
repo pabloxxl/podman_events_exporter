@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"regexp"
 	"strings"
 	"syscall"
 
@@ -42,7 +43,7 @@ func printBuildData() {
 	fmt.Printf("  build time: %s\n", BuildTime)
 }
 
-func parseArguments() (*bool, *bool, *string, map[string]bool, map[string]bool) {
+func parseArguments() (*bool, *bool, *string, map[string]bool, map[string]bool, *string) {
 	include := make(map[string]bool)
 	exclude := make(map[string]bool)
 
@@ -52,6 +53,7 @@ func parseArguments() (*bool, *bool, *string, map[string]bool, map[string]bool) 
 	argPort := flag.String("port", "2112", "Port to serve metrics on")
 	argInclude := flag.String("include", "", "Include certain events, comma separated")
 	argExclude := flag.String("exclude", "", "Exclude certain events, comma separated")
+	argContainerRegex := flag.String("container_regex", "", "Container regular expression")
 
 	flag.Parse()
 	for _, elem := range strings.Split(*argInclude, ",") {
@@ -67,7 +69,7 @@ func parseArguments() (*bool, *bool, *string, map[string]bool, map[string]bool) 
 	}
 	hostWithPort := *argHost + ":" + *argPort
 
-	return argVersion, arghelp, &hostWithPort, include, exclude
+	return argVersion, arghelp, &hostWithPort, include, exclude, argContainerRegex
 }
 
 func createListener(ctx context.Context, eventChan *chan entities.Event, exitChan *chan bool) error {
@@ -80,32 +82,41 @@ func createListener(ctx context.Context, eventChan *chan entities.Event, exitCha
 	return nil
 }
 
-func convertEventToCounter(event *entities.Event, counters map[string]*prometheus.CounterVec, include map[string]bool, exclude map[string]bool) {
+func convertEventToCounter(event *entities.Event, counters map[string]*prometheus.CounterVec,
+	include map[string]bool, exclude map[string]bool, rgx *regexp.Regexp) {
+
 	val, ok := event.Actor.Attributes["name"]
 	name := "unkown"
 	action := event.Action
 	var labelNames []string
 	labels := make(map[string]string)
 
-	if len(include) > 0 && !include[action] {
-		klog.V(2).Infof("%s is not included. Included labels: %s", action, include)
-		return
-	}
-
-	if len(exclude) > 0 && include[action] {
-		klog.V(2).Infof("%s is excluded", action)
-		return
-	}
-
-	if action == "" {
-		klog.V(2).Info("Event is missing action type")
-		return
-	}
-
 	if ok && val != "" {
 		name = val
 		labels["name"] = name
 		labelNames = append(labelNames, "name")
+	}
+
+	if rgx != nil {
+		if !rgx.Match([]byte(name)) {
+			klog.V(3).Infof("Dropping %s for %s: regular expression does not match", action, name)
+			return
+		}
+
+	}
+	if len(include) > 0 && !include[action] {
+		klog.V(3).Infof("Dropping %s for %s: action is not included", action, name)
+		return
+	}
+
+	if len(exclude) > 0 && exclude[action] {
+		klog.V(3).Infof("Dropping %s for %s: action is excluded", action, name)
+		return
+	}
+
+	if action == "" {
+		klog.V(2).Infof("Dropping %s for %s: missing action type", action, name)
+		return
 	}
 
 	valC, okC := counters[action]
@@ -140,7 +151,7 @@ func main() {
 	klog.InitFlags(nil)
 	defer klog.Flush()
 
-	version, help, hostWithPort, include, exclude := parseArguments()
+	version, help, hostWithPort, include, exclude, containerRegex := parseArguments()
 	if *help {
 		flag.Usage()
 		os.Exit(0)
@@ -150,6 +161,16 @@ func main() {
 	}
 	// Disable ugly logs from podman library
 	logrus.SetOutput(ioutil.Discard)
+
+	var rgx *regexp.Regexp = nil
+	var err error
+	if *containerRegex != "" {
+		rgx, err = regexp.Compile(*containerRegex)
+		if err != nil {
+			klog.Errorf("%s is not a valid regular expression", *containerRegex)
+			os.Exit(1)
+		}
+	}
 
 	klog.Infof("Running podman_events_exporter version %s", Version)
 	klog.V(2).Infof("Running podman_events_exporter version %s", Version)
@@ -192,7 +213,7 @@ func main() {
 
 	for run {
 		msg := <-eventChan
-		convertEventToCounter(&msg, counters, include, exclude)
+		convertEventToCounter(&msg, counters, include, exclude, rgx)
 	}
 
 	klog.Info("Program finished")
