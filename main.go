@@ -42,15 +42,16 @@ func printBuildData() {
 	fmt.Printf("  build time: %s\n", BuildTime)
 }
 
-func parseArguments() (*bool, *bool, map[string]bool, map[string]bool) {
+func parseArguments() (*bool, *bool, *string, map[string]bool, map[string]bool) {
 	include := make(map[string]bool)
 	exclude := make(map[string]bool)
 
 	argVersion := flag.Bool("version", false, "Print version and exit")
 	arghelp := flag.Bool("help", false, "Print help and exit")
+	argHost := flag.String("host", "", "Host to serve metrics on")
+	argPort := flag.String("port", "2112", "Port to serve metrics on")
 	argInclude := flag.String("include", "", "Include certain events, comma separated")
 	argExclude := flag.String("exclude", "", "Exclude certain events, comma separated")
-	argDebug := flag.Bool("debug", false, "Run program in debug mode")
 
 	flag.Parse()
 	for _, elem := range strings.Split(*argInclude, ",") {
@@ -64,11 +65,9 @@ func parseArguments() (*bool, *bool, map[string]bool, map[string]bool) {
 			exclude[elem] = true
 		}
 	}
+	hostWithPort := *argHost + ":" + *argPort
 
-	if *argDebug {
-		flag.Set("v", "2")
-	}
-	return argVersion, arghelp, include, exclude
+	return argVersion, arghelp, &hostWithPort, include, exclude
 }
 
 func createListener(ctx context.Context, eventChan *chan entities.Event, exitChan *chan bool) error {
@@ -141,7 +140,7 @@ func main() {
 	klog.InitFlags(nil)
 	defer klog.Flush()
 
-	version, help, include, exclude := parseArguments()
+	version, help, hostWithPort, include, exclude := parseArguments()
 	if *help {
 		flag.Usage()
 		os.Exit(0)
@@ -153,6 +152,7 @@ func main() {
 	logrus.SetOutput(ioutil.Discard)
 
 	klog.Infof("Running podman_events_exporter version %s", Version)
+	klog.V(2).Infof("Running podman_events_exporter version %s", Version)
 	for k := range include {
 		klog.Infof("Including event %s", k)
 	}
@@ -186,9 +186,9 @@ func main() {
 	}()
 	go createListener(ctx, &eventChan, &exitChan)
 
-	klog.Info("Listening on /metrics")
+	klog.Infof("Listening on %s/metrics", *hostWithPort)
 	http.Handle("/metrics", promhttp.Handler())
-	go http.ListenAndServe(":2112", nil)
+	go http.ListenAndServe(*hostWithPort, nil)
 
 	for run {
 		msg := <-eventChan
