@@ -32,7 +32,7 @@ podman_events_pull{api_version="4.1.1",arch="amd64",cgroups="systemd",go_version
 # TYPE podman_events_start counter
 podman_events_start{api_version="4.1.1",arch="amd64",cgroups="systemd",go_version="go1.18.3",hostname="myhostname",name="awesome_mcclintock",network_backend="cni"} 1
 podman_events_start{api_version="4.1.1",arch="amd64",cgroups="systemd",go_version="go1.18.3",hostname="myhostname",name="determined_hermann",network_backend="cni"} 1
-``
+```
 
 Example config.toml provided by `--config` option
 ```
