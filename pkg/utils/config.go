@@ -6,11 +6,13 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/BurntSushi/toml"
 	klog "k8s.io/klog/v2"
 )
 
 const (
-	SOCK_DIR = "/var/run"
+	SOCK_DIR     = "/var/run/podman/podman.sock"
+	DEFAULT_PORT = "2112"
 )
 
 type ConfigOpts struct {
@@ -21,6 +23,15 @@ type ConfigOpts struct {
 	Include      map[string]bool
 	Exclude      map[string]bool
 	Regex        *regexp.Regexp
+}
+
+type FileConfigOpts struct {
+	Socket  string
+	Host    string
+	Port    string
+	Include []string
+	Exclude []string
+	Regex   string
 }
 
 func ParseCLIArguments() *ConfigOpts {
@@ -34,34 +45,70 @@ func ParseCLIArguments() *ConfigOpts {
 	arghelp := flag.Bool("help", false, "Print help and exit")
 	argSocket := flag.String("socket", "", "Podman socket path")
 	argHost := flag.String("host", "", "Host to serve metrics on")
-	argPort := flag.String("port", "2112", "Port to serve metrics on")
+	argPort := flag.String("port", "", "Port to serve metrics on")
 	argInclude := flag.String("include", "", "Include certain events, comma separated")
 	argExclude := flag.String("exclude", "", "Exclude certain events, comma separated")
 	argContainerRegex := flag.String("container_regex", "", "Container regular expression")
 
+	argsConfig := flag.String("config", "", "Config file path")
+
 	flag.Parse()
-	for _, elem := range strings.Split(*argInclude, ",") {
-		if len(elem) > 2 {
+
+	if *argsConfig != "" {
+		fileConfig, err := parseConfigFile(*argsConfig)
+		if err != nil {
+			klog.Errorf("Cannot open provided config file %s: %s", *argsConfig, err)
+			os.Exit(1)
+		}
+		argSocket = &fileConfig.Socket
+		argHost = &fileConfig.Host
+		argPort = &fileConfig.Port
+		for _, elem := range fileConfig.Include {
 			include[elem] = true
 		}
-	}
 
-	for _, elem := range strings.Split(*argExclude, ",") {
-		if len(elem) > 2 {
+		for _, elem := range fileConfig.Exclude {
 			exclude[elem] = true
 		}
+
+		argContainerRegex = &fileConfig.Regex
+	} else {
+
+		for _, elem := range strings.Split(*argInclude, ",") {
+			if len(elem) > 2 {
+				include[elem] = true
+			}
+		}
+
+		for _, elem := range strings.Split(*argExclude, ",") {
+			if len(elem) > 2 {
+				exclude[elem] = true
+			}
+		}
 	}
-	hostWithPort := *argHost + ":" + *argPort
 
 	socket := SOCK_DIR
 	if *argSocket != "" {
 		socket = *argSocket
 	}
 
+	port := DEFAULT_PORT
+	if *argPort != "" {
+		port = *argPort
+	}
+
+	hostWithPort := *argHost + ":" + port
+
 	config := ConfigOpts{*argVersion, *arghelp, socket, hostWithPort, include, exclude, nil}
 	config.checkRegex(*argContainerRegex)
 
 	return &config
+}
+
+func parseConfigFile(path string) (*FileConfigOpts, error) {
+	var config FileConfigOpts
+	_, err := toml.DecodeFile(path, &config)
+	return &config, err
 }
 
 func (c *ConfigOpts) PrintParameters() {

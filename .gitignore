@@ -17,3 +17,5 @@
 # Binary file
 bin/podman_events_exporter*
 
+# Config file
+config.toml

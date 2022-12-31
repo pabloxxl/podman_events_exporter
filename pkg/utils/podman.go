@@ -20,7 +20,7 @@ func CreateListener(ctx context.Context, eventChan *chan entities.Event, exitCha
 }
 
 func ConnectToPodmanSocket(path string) (context.Context, error) {
-	socket := "unix:" + path + "/podman/podman.sock"
+	socket := "unix:" + path
 	ctx, err := bindings.NewConnection(context.Background(), socket)
 	if err != nil {
 		klog.Errorf("Failed to connect to %s", socket)
