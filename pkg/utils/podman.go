@@ -1,0 +1,31 @@
+package utils
+
+import (
+	"context"
+
+	"github.com/containers/podman/v4/pkg/bindings"
+	"github.com/containers/podman/v4/pkg/bindings/system"
+	"github.com/containers/podman/v4/pkg/domain/entities"
+	klog "k8s.io/klog/v2"
+)
+
+func CreateListener(ctx context.Context, eventChan *chan entities.Event, exitChan *chan bool) error {
+	klog.Info("Creating events listener")
+	err := system.Events(ctx, *eventChan, *exitChan, &system.EventsOptions{})
+	if err != nil {
+		klog.V(2).ErrorS(err, "Event is missing action type")
+	}
+	klog.Info("Events listener is finished")
+	return nil
+}
+
+func ConnectToPodmanSocket(path string) (context.Context, error) {
+	socket := "unix:" + path + "/podman/podman.sock"
+	ctx, err := bindings.NewConnection(context.Background(), socket)
+	if err != nil {
+		klog.Errorf("Failed to connect to %s", socket)
+		return nil, err
+	}
+	klog.Infof("Connected to podman socket at %s", socket)
+	return ctx, nil
+}
