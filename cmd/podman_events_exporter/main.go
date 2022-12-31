@@ -42,6 +42,11 @@ func loop(config *utils.ConfigOpts) {
 		os.Exit(1)
 	}
 
+	infoLabels, err := utils.GetInfoLabels(ctx)
+	if err != nil {
+		os.Exit(1)
+	}
+
 	run := true
 	counters := make(map[string]*prometheus.CounterVec)
 
@@ -56,6 +61,7 @@ func loop(config *utils.ConfigOpts) {
 		exitChan <- true
 		run = false
 	}()
+	utils.GetInfoLabels(ctx)
 	go utils.CreateListener(ctx, &eventChan, &exitChan)
 
 	klog.Infof("Listening on %s/metrics", config.HostWithPort)
@@ -64,13 +70,10 @@ func loop(config *utils.ConfigOpts) {
 
 	for run {
 		msg := <-eventChan
-		events.ConvertEventToCounter(&msg, counters, config.Include, config.Exclude, config.Regex)
+		events.ConvertEventToCounter(&msg, counters, config, infoLabels)
 	}
 }
 func main() {
-	klog.InitFlags(nil)
-	defer klog.Flush()
-
 	config := utils.ParseCLIArguments()
 	if config.Help {
 		flag.Usage()

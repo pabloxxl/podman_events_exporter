@@ -29,3 +29,21 @@ func ConnectToPodmanSocket(path string) (context.Context, error) {
 	klog.Infof("Connected to podman socket at %s", socket)
 	return ctx, nil
 }
+
+func GetInfoLabels(ctx context.Context) (map[string]string, error) {
+	infoLabels := make(map[string]string)
+
+	info, err := system.Info(ctx, nil)
+	if err != nil {
+		return infoLabels, err
+	}
+
+	infoLabels["api_version"] = info.Version.APIVersion
+	infoLabels["go_version"] = info.Version.GoVersion
+	infoLabels["arch"] = info.Host.Arch
+	infoLabels["cgroups"] = info.Host.CgroupManager
+	infoLabels["hostname"] = info.Host.Hostname
+	infoLabels["network_backend"] = info.Host.NetworkBackend
+
+	return infoLabels, nil
+}

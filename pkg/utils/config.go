@@ -27,6 +27,9 @@ func ParseCLIArguments() *ConfigOpts {
 	include := make(map[string]bool)
 	exclude := make(map[string]bool)
 
+	klog.InitFlags(nil)
+	defer klog.Flush()
+
 	argVersion := flag.Bool("version", false, "Print version and exit")
 	arghelp := flag.Bool("help", false, "Print help and exit")
 	argSocket := flag.String("socket", "", "Podman socket path")

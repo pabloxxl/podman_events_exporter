@@ -1,15 +1,14 @@
 package events
 
 import (
-	"regexp"
-
 	"github.com/containers/podman/v4/pkg/domain/entities"
+	"github.com/pabloxxl/podman_events_exporter/pkg/utils"
 	"github.com/prometheus/client_golang/prometheus"
-	"k8s.io/klog"
+	klog "k8s.io/klog/v2"
 )
 
 func ConvertEventToCounter(event *entities.Event, counters map[string]*prometheus.CounterVec,
-	include map[string]bool, exclude map[string]bool, rgx *regexp.Regexp) {
+	config *utils.ConfigOpts, infoLabels map[string]string) {
 
 	val, ok := event.Actor.Attributes["name"]
 	name := "unkown"
@@ -17,25 +16,31 @@ func ConvertEventToCounter(event *entities.Event, counters map[string]*prometheu
 	var labelNames []string
 	labels := make(map[string]string)
 
+	for k, v := range infoLabels {
+		labels[k] = v
+		labelNames = append(labelNames, k)
+	}
+
 	if ok && val != "" {
 		name = val
 		labels["name"] = name
 		labelNames = append(labelNames, "name")
 	}
 
-	if rgx != nil {
-		if !rgx.Match([]byte(name)) {
+	if config.Regex != nil {
+		if !config.Regex.Match([]byte(name)) {
 			klog.V(3).Infof("Dropping %s for %s: regular expression does not match", action, name)
 			return
 		}
 
 	}
-	if len(include) > 0 && !include[action] {
+
+	if len(config.Include) > 0 && !config.Include[action] {
 		klog.V(3).Infof("Dropping %s for %s: action is not included", action, name)
 		return
 	}
 
-	if len(exclude) > 0 && exclude[action] {
+	if len(config.Exclude) > 0 && config.Exclude[action] {
 		klog.V(3).Infof("Dropping %s for %s: action is excluded", action, name)
 		return
 	}
