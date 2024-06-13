@@ -25,6 +25,9 @@ func ConvertEventToCounter(event *entities.Event, counters map[string]*prometheu
 		name = val
 		labels["name"] = name
 		labelNames = append(labelNames, "name")
+	} else {
+		// If podman socket dies, it might start sending empty events. The best way to handle this is to panic.
+		panic(fmt.Sprintf("Missing or empty 'name' attribute in event.Actor.Attributes: %+v", event.Actor.Attributes))
 	}
 
 	if config.Regex != nil {
