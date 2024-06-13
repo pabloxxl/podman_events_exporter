@@ -5,6 +5,7 @@ import (
 	"github.com/pabloxxl/podman_events_exporter/pkg/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	klog "k8s.io/klog/v2"
+	"fmt"
 )
 
 func ConvertEventToCounter(event *entities.Event, counters map[string]*prometheus.CounterVec,
