@@ -5,6 +5,7 @@ import (
 	"github.com/pabloxxl/podman_events_exporter/pkg/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	klog "k8s.io/klog/v2"
+	"fmt"
 )
 
 func ConvertEventToCounter(event *entities.Event, counters map[string]*prometheus.CounterVec,
@@ -25,6 +26,9 @@ func ConvertEventToCounter(event *entities.Event, counters map[string]*prometheu
 		name = val
 		labels["name"] = name
 		labelNames = append(labelNames, "name")
+	} else {
+		// If podman socket dies, it might start sending empty events. The best way to handle this is to panic.
+		panic(fmt.Sprintf("Missing or empty 'name' attribute in event.Actor.Attributes: %+v,", event))
 	}
 
 	if config.Regex != nil {
