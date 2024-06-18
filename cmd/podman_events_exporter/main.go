@@ -51,6 +51,7 @@ func loop(config *utils.ConfigOpts) {
 	counters := make(map[string]*prometheus.CounterVec)
 
 	exitChan := make(chan bool)
+	breakChan := make(chan bool)
 	eventChan := make(chan entities.Event)
 	sigChan := make(chan os.Signal)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -61,8 +62,15 @@ func loop(config *utils.ConfigOpts) {
 		exitChan <- true
 		run = false
 	}()
+
+	go func() {
+		<-breakChan
+		klog.Info("Breaking main loop")
+		run = false
+	}()
+
 	utils.GetInfoLabels(ctx)
-	go utils.CreateListener(ctx, &eventChan, &exitChan)
+	go utils.CreateListener(ctx, &eventChan, &exitChan, &breakChan)
 
 	klog.Infof("Listening on %s/metrics", config.HostWithPort)
 	http.Handle("/metrics", promhttp.Handler())

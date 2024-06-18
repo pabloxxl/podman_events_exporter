@@ -9,13 +9,14 @@ import (
 	klog "k8s.io/klog/v2"
 )
 
-func CreateListener(ctx context.Context, eventChan *chan entities.Event, exitChan *chan bool) error {
+func CreateListener(ctx context.Context, eventChan *chan entities.Event, exitChan *chan bool, breakChan *chan bool) error {
 	klog.Info("Creating events listener")
 	err := system.Events(ctx, *eventChan, *exitChan, &system.EventsOptions{})
 	if err != nil {
 		klog.V(2).ErrorS(err, "Event is missing action type")
 	}
 	klog.Info("Events listener is finished")
+	*breakChan <- true
 	return nil
 }
 
