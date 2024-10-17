@@ -37,6 +37,9 @@ func printBuildData() {
 }
 
 func loop(config *utils.ConfigOpts) {
+	klog.Infof("Listening on %s/metrics", config.HostWithPort)
+	http.Handle("/metrics", promhttp.Handler())
+
 	ctx, err := utils.ConnectToPodmanSocket(config.Socket)
 	if err != nil {
 		os.Exit(1)
@@ -72,8 +75,6 @@ func loop(config *utils.ConfigOpts) {
 	utils.GetInfoLabels(ctx)
 	go utils.CreateListener(ctx, &eventChan, &exitChan, &breakChan)
 
-	klog.Infof("Listening on %s/metrics", config.HostWithPort)
-	http.Handle("/metrics", promhttp.Handler())
 	go http.ListenAndServe(config.HostWithPort, nil)
 
 	for run {
