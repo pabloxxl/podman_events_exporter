@@ -19,6 +19,9 @@ build:
 execute:
 	bin/${BINARY_NAME}
  
+test:
+	CGO_ENABLED=0 go test -tags containers_image_openpgp ./...
+ 
 clean:
 	go clean
 	rm -rf bin

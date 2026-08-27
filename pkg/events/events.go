@@ -1,7 +1,7 @@
 package events
 
 import (
-	"github.com/containers/podman/v4/pkg/domain/entities"
+	"github.com/containers/podman/v5/pkg/domain/entities"
 	"github.com/pabloxxl/podman_events_exporter/pkg/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	klog "k8s.io/klog/v2"
@@ -16,7 +16,7 @@ func ConvertEventToCounter(event *entities.Event, counters map[string]*prometheu
 	}
 
 	name := "unkown"
-	action := event.Action
+	action := string(event.Action)
 	var labelNames []string
 	labels := make(map[string]string)
 
@@ -57,7 +57,7 @@ func ConvertEventToCounter(event *entities.Event, counters map[string]*prometheu
 	valC, okC := counters[action]
 	if !okC {
 		klog.V(2).Infof("Creating new counter: podman_events_%s with %d labels", event.Action, len(labelNames))
-		counters[event.Action] = prometheus.NewCounterVec(
+		counters[action] = prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "podman_events_" + action,
 				Help: "Podman event " + action,

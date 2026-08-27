@@ -100,7 +100,9 @@ func ParseCLIArguments() *ConfigOpts {
 	hostWithPort := *argHost + ":" + port
 
 	config := ConfigOpts{*argVersion, *arghelp, socket, hostWithPort, include, exclude, nil}
-	config.checkRegex(*argContainerRegex)
+	if !(config.checkRegex(*argContainerRegex)) {
+		os.Exit(1)
+	}
 
 	return &config
 }
@@ -122,13 +124,14 @@ func (c *ConfigOpts) PrintParameters() {
 
 }
 
-func (c *ConfigOpts) checkRegex(rawRegex string) {
+func (c *ConfigOpts) checkRegex(rawRegex string) bool {
 	var err error
 	if rawRegex != "" {
 		c.Regex, err = regexp.Compile(rawRegex)
 		if err != nil {
 			klog.Errorf("%s is not a valid regular expression", rawRegex)
-			os.Exit(1)
+			return false
 		}
 	}
+	return true
 }

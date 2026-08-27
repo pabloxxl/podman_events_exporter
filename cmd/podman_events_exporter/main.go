@@ -12,7 +12,7 @@ import (
 	"github.com/pabloxxl/podman_events_exporter/pkg/events"
 	"github.com/pabloxxl/podman_events_exporter/pkg/utils"
 
-	"github.com/containers/podman/v4/pkg/domain/entities"
+	"github.com/containers/podman/v5/pkg/domain/entities"
 	"github.com/sirupsen/logrus"
 
 	"github.com/prometheus/client_golang/prometheus"
